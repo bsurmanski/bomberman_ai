@@ -2,6 +2,7 @@ import im.antoine.bombjava.Client;
 import im.antoine.bombjava.Duration;
 import im.antoine.bombjava.GameState;
 import im.antoine.bombjava.PlayerState;
+import java.lang.Integer;
 import java.util.Date;
 
 class Bomberman implements Runnable
@@ -9,12 +10,13 @@ class Bomberman implements Runnable
     volatile GameState state;
     Client client;
 
-    Bomberman()
+    Bomberman(String host, int port)
     {
         try {
-        client = new Client("127.0.0.1", 40000);
+            client = new Client(host, port);
             client.open();
             Thread stateThread = new Thread(this);
+            state = client.nextState();
             stateThread.start();
         } catch (Exception e) {e.printStackTrace();}
     }
@@ -32,8 +34,6 @@ class Bomberman implements Runnable
     public void loop()
     {
         Player player = null;
-        Player.Move lastMove = Player.Move.WAIT;
-        int lastFrame = -1;
         try
         {
         while(true)
@@ -41,8 +41,8 @@ class Bomberman implements Runnable
             if(state == null) continue;
             if(player == null) 
                 player = new Player(state.getPlayerState().getX(), state.getPlayerState().getY());
+            GameState old = state;
             Player.Move move = player.update(state);
-            if(state.getTurn() == lastFrame && lastMove != Player.Move.WAIT) continue;
             switch(move)
             {
                 case UP:
@@ -63,8 +63,16 @@ class Bomberman implements Runnable
                 default:
                     break;
             }
-            lastMove = move;
-            lastFrame = state.getTurn();
+
+            if(old == state)
+                Thread.sleep(80);
+            /*
+            int i = 0;
+            while(old == state && i < 10)
+            {
+                i++;
+            }
+            while(!player.sync(state));*/
         }
         } catch(Exception e)
         {e.printStackTrace(); }
@@ -72,7 +80,11 @@ class Bomberman implements Runnable
 
     public static void main(String[] args)
     {
-        Bomberman bomberman = new Bomberman();
+        String h = "127.0.0.1";
+        int pt = 40000;
+        if(args.length > 1) h = args[1];
+        if(args.length > 2) pt = Integer.parseInt(args[2]);
+        Bomberman bomberman = new Bomberman(h, pt);
         bomberman.loop();
     }
 }

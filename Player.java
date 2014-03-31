@@ -3,6 +3,7 @@ import im.antoine.bombjava.GameState;
 import im.antoine.bombjava.PlayerState;
 import im.antoine.bombjava.Board;
 import java.lang.Math;
+import java.util.Collections;
 import java.util.ArrayList;
 
 // Bombs take 60 frames to explode
@@ -12,11 +13,6 @@ class Player
     public enum Move
     {
         UP, DOWN, LEFT, RIGHT, BOMB, WAIT 
-    }
-
-    public enum Personality
-    {
-        ATTACK, DESTROY, HIDE, DEFEND,
     }
 
     static int BIG = 99999;
@@ -51,7 +47,7 @@ class Player
         }
     }
 
-    class Enemy
+    class Enemy implements Comparable<Enemy>
     {
         int x;
         int y;
@@ -59,6 +55,11 @@ class Player
         {
             x = _x; 
             y = _y;
+        }
+
+        public int compareTo(Enemy o)
+        {
+            return x - o.x;
         }
     }
 
@@ -250,6 +251,7 @@ class Player
         updateCellNotes_r(b, getX(), getY() + 1, 0, 1, Move.DOWN);
         updateCellNotes_r(b, getX(), getY() - 1, 0, 1, Move.UP);
 
+        Collections.sort(enemies);
         endangerFromBombs(state);
     }
 
@@ -305,19 +307,7 @@ class Player
         int u = pathToSafety_r(state, getX(), getY()-1, 1);
 
         Move m = selectMin(l,r,u,d);
-        System.out.println("X: " + getX() + " Y: " + getY() + " : " + m + ", LASTX: " +
-                pstate.getLastX() + ", LASTY: " + pstate.getLastY());
         return selectMin(l, r, u, d);
-    }
-
-    Move updateDestroy()
-    {
-        return Move.BOMB; 
-    }
-
-    Move updateHide()
-    {
-        return Move.LEFT;  
     }
 
     Move think(GameState state)
@@ -339,6 +329,7 @@ class Player
             CellNote note = getCellNote(enemies.get(0).x, enemies.get(0).y);
             if(note.distance <= 2) return Move.BOMB;
             m = pathToTarget(state, enemies.get(0).x, enemies.get(0).y);
+            System.out.println("TARGET " + enemies.get(0).x + " : " + enemies.get(0).y + " ; " + m);
         }
         CellNote off = getOffsetCellNote(getX(), getY(), m);
         if(!off.isPassible() && off.isBreakible())
@@ -378,13 +369,37 @@ class Player
         return (lastMove != Move.WAIT || lastMove != Move.BOMB) && 
             (state.getTurn() - lastFrame < 3);
     }
+    
+    static int syncTimer = 0;
+    boolean sync(GameState state) throws Exception
+    {
+        PlayerState pstate = state.getPlayerState();
+        if(getX() == pstate.getX() && getY() == pstate.getY() && 
+                (lastMove != Move.BOMB && lastMove != Move.WAIT) )
+        {
+            if(state.getTurn() - lastFrame > 10 || syncTimer >= 100)
+            { 
+                updatePosition(state);
+                syncTimer = 0;
+                return true;
+            }
+
+            syncTimer++;
+            
+            return false;
+        }
+        syncTimer = 0;
+
+        updatePosition(state);
+        return true;
+    }
 
     Move update(GameState state)
     {
         boolean refresh = true;
         updatePosition(state);
-        if(refresh)
-            updateCellNotes(state);
+        updateCellNotes(state);
+
         PlayerState pstate = state.getPlayerState();
         Move m = think(state);
         if(m == Move.BOMB)
@@ -404,34 +419,6 @@ class Player
             }
         }
 
-        //if(refresh) updateCellNotes(state);
-        
-        switch(m)
-        {
-            case UP: 
-                y--;
-                break;
-            case DOWN:
-                y++;
-                break;
-            case LEFT:
-                x--;
-                break;
-            case RIGHT:
-                x++;
-                break;
-            case WAIT:
-            case BOMB:
-                updatePosition(state);
-                break;
-        }
-
-        /*
-        if(queued(state))
-        {
-            updatePosition(state);
-            return Move.WAIT;
-        }*/
         lastMove = m;
         lastX = x;
         lastY = y;
